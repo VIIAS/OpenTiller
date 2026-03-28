@@ -1,0 +1,49 @@
+# OpenTiller — .gitignore
+
+# Sécurité — ne jamais committer
+*.token
+*.secret
+*.key
+*.pem
+.env
+.env.*
+secrets/
+credentials/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+
+# C / STM32
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+*.d
+*.lst
+build/
+Debug/
+Release/
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

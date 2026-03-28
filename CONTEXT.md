@@ -2,7 +2,7 @@
 
 > **Alias** : VIAS-PILOT
 > **Statut** : En développement — prototype DIY
-> **Licence** : À définir (open source)
+> **Licence** : GPLv3 (compatible avec pypilot/TinyPilot dont nous nous inspirons)
 
 ---
 
@@ -32,22 +32,24 @@ OpenTiller renoue avec cet esprit :
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Raspberry Pi Zero                        │
+│              Raspberry Pi Zero (TinyPilot/pypilot)          │
 │                                                             │
+│  • TinyPilot (TinyCore Linux + pypilot) — GPLv3             │
 │  • Navigation haute-niveau                                  │
 │  • Calcul de cap cible (waypoints, cap magnétique)          │
 │  • Lecture GPS (COG/SOG/position)                           │
-│  • Interface utilisateur (web ou console)                   │
+│  • Interface utilisateur web (Flask, port 33333)            │
+│  • IMU primaire : ICM20948 (I2C)                            │
 │  • Pas de contrainte temps réel                             │
 └────────────────────────┬────────────────────────────────────┘
                          │  UART série (PROTOCOL.md)
-                         │  Consigne de cap + commandes
+                         │  Consigne de cap + données IMU
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              Carte contrôleur (Skyline32 ou CC3D)           │
 │                                                             │
 │  • Contrôle temps réel                                      │
-│  • Lecture compas (HMC5883L)                                │
+│  • IMU secondaire : intégrée (Skyline32) / HMC5883L (CC3D)  │
 │  • Boucle PID : cap mesuré → cap cible → commande servo     │
 │  • Pilotage moteur de barre (PWM1 → servo)                  │
 │  • Maintien du dernier cap si liaison Pi perdue             │
@@ -58,15 +60,43 @@ OpenTiller renoue avec cet esprit :
 
 ---
 
+## Redondance IMU — détection de panne capteur
+
+OpenTiller embarque deux IMU physiquement séparées. Le système adapte son comportement automatiquement selon ce qui est disponible :
+
+```
+Démarrage
+    │
+    ├─ ICM20948 (Pi) détecté ?  NON → erreur critique, arrêt
+    │                           OUI ↓
+    │
+    └─ IMU Naze32 accessible ?  NON → mode 1 capteur (fonctionnement normal)
+                                OUI → mode redondance activé automatiquement
+                                       │
+                                       ├─ Comparaison continue des deux capteurs
+                                       ├─ Divergence > seuil → identification du capteur défaillant
+                                       ├─ Bascule automatique sur le capteur sain
+                                       └─ Alerte utilisateur via interface web
+```
+
+**Avantage architectural** : le système fonctionne parfaitement avec l'ICM20948 seul. La Naze32/CC3D est une amélioration optionnelle, pas un prérequis. Cela rend OpenTiller utilisable par quelqu'un qui n'a qu'un Pi Zero et son ICM20948, sans aucune carte STM32.
+
+Cette redondance est absente de la majorité des pilotes commerciaux sous 1000€.
+
+---
+
 ## Matériel cible
 
 | Composant | Modèle retenu | Rôle |
 |-----------|--------------|------|
-| Ordinateur de bord | Raspberry Pi Zero | Navigation, GPS, interface |
+| Ordinateur de bord | Raspberry Pi Zero v1 | Navigation, GPS, interface |
+| OS Pi Zero | TinyCore Linux + TinyPilot | Distribution minimaliste pypilot |
+| IMU primaire | ICM20948 (I2C sur Pi) | Cap, attitude — source principale |
 | Contrôleur primaire | Skyline32 Full (EMAX) | Temps réel, PID, servo |
 | Contrôleur spare | CC3D Rev.C (OpenPilot) | Même firmware, flag différent |
+| IMU secondaire | Intégrée Skyline32 / HMC5883L CC3D | Redondance, détection de panne |
 | GPS | Module USB/UART | Cap fond, position |
-| Compas | HMC5883L (intégré Skyline32) | Cap magnétique |
+| Réseau | Adaptateur USB-Ethernet RJ45 | Accès LAN (pas de WiFi sur Pi Zero v1) |
 
 Voir [HARDWARE_INVENTORY.md](HARDWARE_INVENTORY.md) pour le détail complet.
 
@@ -107,8 +137,8 @@ OpenTiller/
 │   ├── cc3d/               ← Code spécifique CC3D
 │   └── common/             ← Code partagé (PID, protocole, compas)
 │
-├── navigator/              ← Code Python Raspberry Pi Zero
-│   └── ...                 ← Navigation, GPS, interface, daemon UART
+├── navigator/              ← Couche Pi Zero (basée sur TinyPilot/pypilot GPLv3)
+│   └── ...                 ← Modifications pypilot, adaptations protocole, redondance IMU
 │
 ├── docs/                   ← Documentation technique approfondie
 │   └── ...
